@@ -1,0 +1,33 @@
+Host 192.168.20.2
+  HostName 192.168.20.2
+  User akrugru
+  IdentityFile ~/.ssh/id_rsa6
+
+# tags: test, rhel
+Host test1
+  HostName 192.168.21.1
+  User akrugru
+  IdentityFile ~/.ssh/id_rsa5
+
+# tags: test, debian, sql
+Host test-sql
+  HostName 192.168.20.100
+  User ansible_user
+  IdentityFile ~/.ssh/id_rsa4
+
+# tags: prod, linux
+Host prod01
+  HostName 192.168.20.1
+  User akrugru
+  IdentityFile ~/.ssh/id_rsa3
+
+# tags: prod, linux
+Host prod02
+  HostName 192.168.20.2
+  User ansible_user
+  IdentityFile ~/.ssh/id_rsa2
+
+Host otherHost
+  HostName 192.168.20.254
+  User ansible_user
+  IdentityFile ~/.ssh/id_rsa
