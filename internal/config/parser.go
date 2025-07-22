@@ -24,6 +24,8 @@ func ParseSSHConfig(filePath string) ([]SSHConfig, error) {
 
 	var configs []SSHConfig
 	var current SSHConfig
+	var pendingTags []string
+
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
@@ -32,23 +34,28 @@ func ParseSSHConfig(filePath string) ([]SSHConfig, error) {
 			continue
 		}
 
+		// собираем pendingTags до Host
 		if strings.HasPrefix(line, "# tags:") {
-			if current.Host == "" {
-				continue
-			}
 			tags := strings.Split(strings.TrimSpace(strings.TrimPrefix(line, "# tags:")), ",")
+			pendingTags = pendingTags[:0] // сбрасываем
 			for i := range tags {
-				tags[i] = strings.TrimSpace(tags[i])
+				pendingTags = append(pendingTags, strings.TrimSpace(tags[i]))
 			}
-			current.Tags = tags
 			continue
 		}
 
 		if strings.HasPrefix(line, "Host ") {
+			// сохраняем предыдущий хост
 			if current.Host != "" {
 				configs = append(configs, current)
 			}
-			current = SSHConfig{Host: strings.TrimSpace(strings.TrimPrefix(line, "Host"))}
+
+			// создаём новый и вшиваем pendingTags
+			current = SSHConfig{
+				Host: strings.TrimSpace(strings.TrimPrefix(line, "Host")),
+				Tags: append([]string{}, pendingTags...), // копируем
+			}
+			pendingTags = nil
 			continue
 		}
 
@@ -70,6 +77,7 @@ func ParseSSHConfig(filePath string) ([]SSHConfig, error) {
 		}
 	}
 
+	// добавим последний хост
 	if current.Host != "" {
 		configs = append(configs, current)
 	}
