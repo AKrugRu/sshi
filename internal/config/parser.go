@@ -29,33 +29,55 @@ func ParseSSHConfig(filePath string) ([]SSHConfig, error) {
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+		raw := scanner.Text()
+		line := strings.TrimSpace(raw)
 		if line == "" {
 			continue
 		}
 
-		// собираем pendingTags до Host
-		if strings.HasPrefix(line, "# tags:") {
-			tags := strings.Split(strings.TrimSpace(strings.TrimPrefix(line, "# tags:")), ",")
-			pendingTags = pendingTags[:0] // сбрасываем
-			for i := range tags {
-				pendingTags = append(pendingTags, strings.TrimSpace(tags[i]))
+		// Обрабатываем комментарий с тегами — допускаем ведущие пробелы перед #
+		if strings.HasPrefix(line, "#") {
+			afterHash := strings.TrimSpace(strings.TrimPrefix(line, "#"))
+			// ожидаем "tags:"
+			if strings.HasPrefix(afterHash, "tags:") {
+				tagsStr := strings.TrimSpace(strings.TrimPrefix(afterHash, "tags:"))
+				parts := strings.Split(tagsStr, ",")
+				pendingTags = pendingTags[:0] // очистить slice (без аллокации нового)
+				for _, t := range parts {
+					t = strings.TrimSpace(t)
+					if t != "" {
+						pendingTags = append(pendingTags, t)
+					}
+				}
 			}
 			continue
 		}
 
+		// Обрабатываем Host — берём всё, что идёт после слова "Host"
 		if strings.HasPrefix(line, "Host ") {
-			// сохраняем предыдущий хост
+			// если был предыдущий текущий хост — сохраним его
 			if current.Host != "" {
 				configs = append(configs, current)
 			}
 
-			// создаём новый и вшиваем pendingTags
+			// создаём новый current и вшиваем pendingTags
+			// безопасно извлекаем часть после 'Host '
+			hostPart := strings.TrimSpace(strings.TrimPrefix(line, "Host"))
+			// hostPart может начинаться с пробела — уберём его
+			hostPart = strings.TrimSpace(hostPart)
+
 			current = SSHConfig{
-				Host: strings.TrimSpace(strings.TrimPrefix(line, "Host")),
-				Tags: append([]string{}, pendingTags...), // копируем
+				Host: strings.TrimSpace(hostPart),
+				Tags: append([]string{}, pendingTags...), // копируем slice
 			}
+			// сбросим pendingTags: если для следующего блока не будет тега, останется nil/пустой
 			pendingTags = nil
+			continue
+		}
+
+		// остальные директивы — только если у нас есть текущий хост
+		if current.Host == "" {
+			// директивы до первого Host игнорируем
 			continue
 		}
 
@@ -64,6 +86,9 @@ func ParseSSHConfig(filePath string) ([]SSHConfig, error) {
 			continue
 		}
 		key, val := fields[0], strings.Join(fields[1:], " ")
+
+		// убрать возможные кавычки вокруг значения
+		val = strings.Trim(val, `"'`)
 
 		switch key {
 		case "HostName":
@@ -77,7 +102,7 @@ func ParseSSHConfig(filePath string) ([]SSHConfig, error) {
 		}
 	}
 
-	// добавим последний хост
+	// добавим последний хост, если есть
 	if current.Host != "" {
 		configs = append(configs, current)
 	}
